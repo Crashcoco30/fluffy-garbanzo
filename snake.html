@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jumping Block Game</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #00008B;
+            color: #fff;
+            user-select: none;
+            overflow: hidden;
+        }
+        
+        #game-container {
+            width: 90%;
+            max-width: 500px;
+            height: 300px;
+            border: 2px solid #fff;
+            background-color: rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+        }
+
+        #instruction {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #FFFF00;
+            padding: 5px 15px;
+            border-radius: 5px;
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            transition: opacity 0.2s ease-in;
+            z-index: 10;
+        }
+
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            font-weight: bold;
+            color: #FF4500;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #retry-button {
+            padding: 10px 20px;
+            font-size: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            margin-top: 15px;
+        }
+
+        #player {
+            width: 40px;
+            height: 40px;
+            background-color: #00BFFF;
+            position: absolute;
+            bottom: 0;
+            left: 20px;
+            box-shadow: 0 0 10px #00BFFF;
+        }
+        
+        .obstacle {
+            width: 30px;
+            height: 50px;
+            background-color: #FF4500;
+            position: absolute;
+            bottom: 0;
+            right: -30px;
+            box-shadow: 0 0 10px #FF4500;
+        }
+
+        .buttons-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 20px 0;
+        }
+
+        .control-buttons-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 15px;
+        }
+        
+        .control-button {
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            background-color: #333;
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+            transition: transform 0.1s ease, box-shadow 0.2s;
+        }
+
+        .control-button#btnC {
+            transform: translateY(-20px);
+        }
+        .control-button#btnO {
+            transform: translateY(-40px);
+        }
+
+        .control-button.active {
+            background-color: #4CAF50;
+            box-shadow: 0 0 15px #4CAF50;
+        }
+
+        .control-button:active {
+            transform: scale(0.95);
+        }
+
+        .jump {
+            animation: jump-animation 0.6s ease-out forwards;
+        }
+        
+        @keyframes jump-animation {
+            0% { bottom: 0; }
+            50% { bottom: 100px; }
+            100% { bottom: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="instruction"></div>
+        <div id="message"></div>
+        <div id="player"></div>
+    </div>
+
+    <div class="buttons-container">
+        <div class="control-buttons-wrapper">
+            <button id="btnX" class="control-button">X</button>
+            <button id="btnC" class="control-button">C</button>
+            <button id="btnO" class="control-button">O</button>
+        </div>
+        <button id="retry-button">Retry</button>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const player = document.getElementById('player');
+        const instruction = document.getElementById('instruction');
+        const messageDisplay = document.getElementById('message');
+        const retryButton = document.getElementById('retry-button');
+        const buttons = {
+            'X': document.getElementById('btnX'),
+            'C': document.getElementById('btnC'),
+            'O': document.getElementById('btnO')
+        };
+        const buttonKeys = ['X', 'C', 'O'];
+
+        let isJumping = false;
+        let isGameOver = false;
+        let currentCorrectButton = '';
+        let obstacleSpeed = 3000;
+        let checkCollisionInterval;
+        let currentObstacle = null;
+        let isInstructionDisplayed = false;
+
+        const JUMP_TIME_MS = 600;
+
+        function startGame() {
+            if (isGameOver) return;
+            isJumping = false;
+            createObstacle();
+            checkCollisionInterval = setInterval(checkCollision, 10);
+            retryButton.style.display = 'none';
+            messageDisplay.style.opacity = 0;
+        }
+
+        function createObstacle() {
+            if (isGameOver) return;
+            
+            const obstacle = document.createElement('div');
+            obstacle.classList.add('obstacle');
+            gameContainer.appendChild(obstacle);
+            currentObstacle = obstacle;
+            isInstructionDisplayed = false;
+            
+            const animationStyle = document.createElement('style');
+            animationStyle.innerHTML = `
+                @keyframes move-obstacle-animation {
+                    from { right: -30px; }
+                    to { right: 100%; }
+                }
+            `;
+            document.head.appendChild(animationStyle);
+
+            obstacle.style.animation = `move-obstacle-animation ${obstacleSpeed}ms linear forwards`;
+
+            setTimeout(() => {
+                if (!isGameOver && gameContainer.contains(obstacle)) {
+                    gameContainer.removeChild(obstacle);
+                    createObstacle();
+                }
+            }, obstacleSpeed + 50);
+        }
+
+        function jump() {
+            isJumping = true;
+            player.classList.add('jump');
+            
+            obstacleSpeed = Math.max(1000, obstacleSpeed - 100);
+            
+            setTimeout(() => {
+                player.classList.remove('jump');
+                isJumping = false;
+            }, JUMP_TIME_MS);
+        }
+
+        function handleButtonClick(buttonKey) {
+            if (isGameOver || isJumping || !isInstructionDisplayed) return;
+
+            if (buttonKey === currentCorrectButton) {
+                instruction.style.opacity = 0;
+                buttons[currentCorrectButton].classList.remove('active');
+                currentCorrectButton = '';
+                isInstructionDisplayed = false;
+                jump();
+            } else {
+                endGame('Wrong time or wrong button!');
+            }
+        }
+        
+        function checkCollision() {
+            if (isJumping || isGameOver || !currentObstacle) return;
+
+            const playerRect = player.getBoundingClientRect();
+            const obstacleRect = currentObstacle.getBoundingClientRect();
+
+            if (!isInstructionDisplayed && obstacleRect.left < playerRect.right + 100 && obstacleRect.left > playerRect.right) {
+                currentCorrectButton = buttonKeys[Math.floor(Math.random() * buttonKeys.length)];
+                instruction.textContent = `Press: ${currentCorrectButton}`;
+                instruction.style.opacity = 1;
+                buttons[currentCorrectButton].classList.add('active');
+                isInstructionDisplayed = true;
+            }
+            
+            if (
+                playerRect.right > obstacleRect.left &&
+                playerRect.left < obstacleRect.right &&
+                playerRect.bottom > obstacleRect.top &&
+                playerRect.top < obstacleRect.bottom
+            ) {
+                if (!player.classList.contains('jump')) {
+                    endGame('Crashed!');
+                }
+            }
+        }
+
+        function endGame(message) {
+            isGameOver = true;
+            clearInterval(checkCollisionInterval);
+            
+            if (currentObstacle) {
+                currentObstacle.style.animationPlayState = 'paused';
+            }
+            player.style.animationPlayState = 'paused';
+
+            messageDisplay.textContent = `Game Over! ${message}`;
+            messageDisplay.style.opacity = 1;
+            retryButton.style.display = 'block';
+        }
+
+        document.addEventListener('keydown', (event) => {
+            const key = event.key.toUpperCase();
+            if (buttonKeys.includes(key)) {
+                handleButtonClick(key);
+            }
+        });
+
+        for (const key in buttons) {
+            buttons[key].addEventListener('mousedown', () => handleButtonClick(key));
+            buttons[key].addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                handleButtonClick(key);
+            });
+        }
+
+        retryButton.addEventListener('click', () => {
+            location.reload();
+        });
+        
+        startGame();
+
+    </script>
+</body>
+</html>
